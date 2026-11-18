@@ -20,6 +20,7 @@ jobs:
       - name: Send Wake-on-LAN magic packet
         run: |
           echo "Sending WOL to ${{ inputs.mac_address }} at ${{ inputs.target_ip }}"
+          
           # Convert MAC format for etherwake (use colons)
           MAC=$(echo "${{ inputs.mac_address }}" | sed 's/\(..\)/\1:/g;s/:$//')
           etherwake -b -i eth0 -p 7 "$MAC" || true
@@ -27,7 +28,6 @@ jobs:
           # Alternative: use Python if etherwake fails
           python3 << EOF
 import socket
-import struct
 
 mac = "${{ inputs.mac_address }}"
 target_ip = "${{ inputs.target_ip }}"
