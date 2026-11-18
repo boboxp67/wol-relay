@@ -14,38 +14,37 @@ jobs:
   send-wol:
     runs-on: ubuntu-latest
     steps:
-      - name: Install wakeonlan tool
-        run: sudo apt-get update && sudo apt-get install -y etherwake
-
       - name: Send Wake-on-LAN magic packet
         run: |
-          echo "Sending WOL to ${{ inputs.mac_address }} at ${{ inputs.target_ip }}"
+          MAC="${{ inputs.mac_address }}"
+          TARGET_IP="${{ inputs.target_ip }}"
           
-          # Convert MAC format for etherwake (use colons)
-          MAC=$(echo "${{ inputs.mac_address }}" | sed 's/\(..\)/\1:/g;s/:$//')
-          etherwake -b -i eth0 -p 7 "$MAC" || true
+          echo "Sending WOL to $MAC at $TARGET_IP"
           
-          # Alternative: use Python if etherwake fails
-          python3 << EOF
+          # Clean MAC address (remove colons and dashes)
+          CLEAN_MAC=$(echo "$MAC" | tr -d ':-')
+          
+          # Build magic packet using Python
+          python3 -c "
 import socket
 
-mac = "${{ inputs.mac_address }}"
-target_ip = "${{ inputs.target_ip }}"
+mac = '$CLEAN_MAC'
+target_ip = '$TARGET_IP'
 
-# Clean MAC
-mac_bytes = bytes.fromhex(mac.replace(":", "").replace("-", ""))
+# Convert hex string to bytes
+mac_bytes = bytes.fromhex(mac)
 
-# Build magic packet
-magic_packet = b"\xff" * 6 + mac_bytes * 16
+# Build magic packet: 6 x FF + MAC repeated 16 times
+magic_packet = b'\xff' * 6 + mac_bytes * 16
 
-# Send via UDP broadcast
+# Send via UDP broadcast on port 7
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 try:
     sock.sendto(magic_packet, (target_ip, 7))
-    print(f"Magic packet sent to {mac} at {target_ip}")
+    print('Magic packet sent successfully')
 except Exception as e:
-    print(f"Error: {e}")
+    print(f'Error sending packet: {e}')
 finally:
     sock.close()
-EOF
+"
